@@ -14,6 +14,8 @@ COPY . .
 
 RUN composer install --no-dev --optimize-autoloader
 
+RUN rm -rf tests/ phpunit.xml
+
 RUN chmod -R 775 storage bootstrap/cache
 
 EXPOSE $PORT
