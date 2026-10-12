@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Database\Seeders;
 
+use App\Enums\AccountType;
 use App\Enums\UserPlan;
 use App\Enums\UserRole;
 use App\Models\User;
@@ -14,7 +15,7 @@ class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
-        User::updateOrCreate(
+        $admin = User::firstOrCreate(
             ['email' => 'admin@rastro.com'],
             [
                 'name' => 'Super Admin',
@@ -24,13 +25,29 @@ class DatabaseSeeder extends Seeder
             ]
         );
 
-        User::updateOrCreate(
+        $admin->accounts()->firstOrCreate(
+            ['name' => 'Efectivo', 'is_default' => true],
+            [
+                'type' => AccountType::Cash,
+                'initial_balance' => 0.00,
+            ]
+        );
+
+        $testUser = User::firstOrCreate(
             ['email' => 'test@example.com'],
             [
                 'name' => 'Test User',
                 'password' => Hash::make('password'),
                 'role' => UserRole::Client->value,
                 'plan' => UserPlan::Free->value,
+            ]
+        );
+
+        $testUser->accounts()->firstOrCreate(
+            ['name' => 'Efectivo', 'is_default' => true],
+            [
+                'type' => AccountType::Cash,
+                'initial_balance' => 0.00,
             ]
         );
     }
