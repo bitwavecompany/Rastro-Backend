@@ -191,7 +191,7 @@ class AdminTest extends TestCase
             'plan' => 'free',
         ]);
 
-        Mail::assertQueued(PlanDowngradedMail::class, function ($mail) use ($client) {
+        Mail::assertSent(PlanDowngradedMail::class, function ($mail) use ($client) {
             return $mail->hasTo($client->email);
         });
     }

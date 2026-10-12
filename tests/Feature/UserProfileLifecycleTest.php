@@ -244,6 +244,6 @@ class UserProfileLifecycleTest extends TestCase
             'payment_receipt' => 'REC-987654321',
         ]);
 
-        Mail::assertQueued(PaymentProofSubmittedMail::class);
+        Mail::assertSent(PaymentProofSubmittedMail::class);
     }
 }

@@ -16,6 +16,14 @@ final class RequestPremiumUpgradeAction
 {
     public function handle(User $user, UpgradePremiumData $data): PremiumRequest
     {
+        PremiumRequest::where('user_id', $user->id)
+            ->where('status', PremiumRequestStatus::PendingVerification)
+            ->update([
+                'status' => PremiumRequestStatus::Rejected,
+                'rejection_reason' => 'Reemplazada por nueva solicitud',
+                'verified_at' => now(),
+            ]);
+
         $premiumRequest = PremiumRequest::create([
             'user_id' => $user->id,
             'status' => PremiumRequestStatus::PendingVerification,
@@ -32,6 +40,7 @@ final class RequestPremiumUpgradeAction
 
         try {
             $adminEmail = (string) config('mail.admin_address', 'bitwave.company@gmail.com');
+            Log::info("Enviando correo de solicitud Premium a {$adminEmail} para el usuario {$user->id}...");
             Mail::to($adminEmail)->send(new PaymentProofSubmittedMail($user));
             Log::info("Correo de solicitud Premium enviado exitosamente a {$adminEmail} para el usuario {$user->id}");
         } catch (\Throwable $e) {
@@ -40,6 +49,9 @@ final class RequestPremiumUpgradeAction
                 'admin_email' => config('mail.admin_address', 'bitwave.company@gmail.com'),
                 'exception' => $e,
             ]);
+            if (config('app.debug')) {
+                report($e);
+            }
         }
 
         return $premiumRequest;
