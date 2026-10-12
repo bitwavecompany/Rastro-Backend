@@ -9,7 +9,7 @@
     
     <div style="background-color: #f9fafb; padding: 15px; border-radius: 8px; border: 1px solid #e5e7eb;">
         <ul style="list-style-type: none; padding: 0; margin: 0;">
-            <li><strong>Método:</strong> {{ $user->payment_method === 'transfer' ? 'Transferencia' : 'Efectivo' }}</li>
+            <li><strong>Método:</strong> {{ ($user->payment_method?->value ?? $user->payment_method) === 'transfer' ? 'Transferencia' : 'Efectivo' }}</li>
             <li><strong>Banco:</strong> {{ $user->payment_bank ?? 'No especificado' }}</li>
             <li><strong>N° de Comprobante:</strong> <span style="font-family: monospace; font-size: 16px;">{{ $user->payment_receipt }}</span></li>
             @if(isset($dateFormatted) && $dateFormatted)

@@ -9,6 +9,7 @@ use App\Enums\PremiumRequestStatus;
 use App\Mail\PaymentProofSubmittedMail;
 use App\Models\PremiumRequest;
 use App\Models\User;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
 final class RequestPremiumUpgradeAction
@@ -32,8 +33,13 @@ final class RequestPremiumUpgradeAction
         try {
             $adminEmail = (string) config('mail.admin_address', 'bitwave.company@gmail.com');
             Mail::to($adminEmail)->send(new PaymentProofSubmittedMail($user));
-        } catch (\Throwable) {
-            // Ignorar fallas de envío de email en entorno de prueba / local
+            Log::info("Correo de solicitud Premium enviado exitosamente a {$adminEmail} para el usuario {$user->id}");
+        } catch (\Throwable $e) {
+            Log::error("Fallo al enviar correo de solicitud Premium: {$e->getMessage()}", [
+                'user_id' => $user->id,
+                'admin_email' => config('mail.admin_address', 'bitwave.company@gmail.com'),
+                'exception' => $e,
+            ]);
         }
 
         return $premiumRequest;

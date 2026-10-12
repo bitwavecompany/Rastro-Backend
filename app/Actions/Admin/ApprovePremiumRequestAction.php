@@ -10,6 +10,7 @@ use App\Mail\PremiumActivatedMail;
 use App\Models\PremiumRequest;
 use App\Models\User;
 use App\Services\Auth\TokenService;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Throwable;
 
@@ -40,7 +41,12 @@ final class ApprovePremiumRequestAction
 
         try {
             Mail::to($user->email)->send(new PremiumActivatedMail($user));
-        } catch (Throwable) {
+            Log::info("Correo de activación Premium enviado a {$user->email}");
+        } catch (Throwable $e) {
+            Log::error("Fallo al enviar correo de activación Premium: {$e->getMessage()}", [
+                'user_id' => $user->id,
+                'exception' => $e,
+            ]);
         }
 
         return $premiumRequest->fresh();
