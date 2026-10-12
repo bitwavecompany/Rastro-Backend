@@ -193,6 +193,21 @@ class UserProfileLifecycleTest extends TestCase
         $this->assertDatabaseMissing('user_sessions', ['id' => $session->id]);
     }
 
+    public function test_delete_me_rejects_admin_user_with_forbidden(): void
+    {
+        /** @var User $admin */
+        $admin = User::factory()->admin()->create();
+        $token = $admin->createToken('admin-device')->plainTextToken;
+
+        $response = $this->withHeader('Authorization', 'Bearer '.$token)
+            ->deleteJson('/api/auth/me');
+
+        $response->assertStatus(HttpCode::FORBIDDEN)
+            ->assertJsonPath('success', false);
+
+        $this->assertDatabaseHas('users', ['id' => $admin->id]);
+    }
+
     public function test_upgrade_request_creates_pending_request_and_queues_email(): void
     {
         Mail::fake();
