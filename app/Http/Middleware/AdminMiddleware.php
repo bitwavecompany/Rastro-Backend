@@ -1,7 +1,12 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Middleware;
 
+use App\Constants\ApiMessage;
+use App\Constants\HttpCode;
+use App\Enums\UserRole;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -10,10 +15,14 @@ class AdminMiddleware
 {
     public function handle(Request $request, Closure $next): Response
     {
-        if (! $request->user() || $request->user()->role !== 'admin') {
+        $user = $request->user();
+
+        if (! $user || $user->role !== UserRole::Admin) {
             return response()->json([
-                'message' => 'Acceso denegado. Requiere privilegios de administrador.'
-            ], 403);
+                'success' => false,
+                'message' => ApiMessage::FORBIDDEN,
+                'data' => null,
+            ], HttpCode::FORBIDDEN);
         }
 
         return $next($request);

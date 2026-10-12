@@ -1,58 +1,198 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+![PHP](https://img.shields.io/badge/PHP-8.3-777BB4?style=flat-square&logo=php&logoColor=white)
+![Laravel](https://img.shields.io/badge/Laravel-13.x-FF2D20?style=flat-square&logo=laravel&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?style=flat-square&logo=postgresql&logoColor=white)
+![Pest](https://img.shields.io/badge/Tests-Pest%2FPHPUnit-16B98B?style=flat-square)
+![License](https://img.shields.io/badge/License-MIT-yellow?style=flat-square)
+![Deploy](https://img.shields.io/badge/Deploy-Render-46E3B7?style=flat-square&logo=render&logoColor=white)
+![Auth](https://img.shields.io/badge/Auth-Laravel%20Sanctum-FB503B?style=flat-square)
+![DB Prod](https://img.shields.io/badge/DB%20Prod-Neon%20Serverless-00E599?style=flat-square&logo=neon&logoColor=white)
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+# Rastro Backend
 
-## About Laravel
+REST API built with Laravel 13 to support the **Rastro** financial mobile app. Its core responsibilities are offline-first data synchronization, authentication with concurrent session control, and strict enforcement of business rules.
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## Tech Stack
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+| Component | Technology |
+|---|---|
+| Language | PHP 8.3 (Strict Typed) |
+| Framework | Laravel 13.x |
+| Database (local) | PostgreSQL 16 via Docker / Sail |
+| Database (production) | Neon (serverless PostgreSQL) |
+| Authentication | Laravel Sanctum (dual-token: access + refresh) |
+| Testing | Pest / PHPUnit |
+| Deploy | Render (Web Service with Dockerfile) |
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+---
 
-## Learning Laravel
+## Project Documentation
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+Read in this order before touching the code:
 
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+| Document | Contents |
+|---|---|
+| `_context/prd.md` | Source of truth for business rules and user plans |
+| `_context/business-rules.md` | Detailed rules per entity and flow |
+| `_context/data-model-backend.md` | DB schema, Eloquent models, enums, and canonical fields |
+| `_context/api_contract.md` | Full contract for endpoints, payloads, and responses |
+| `_context/backlog.md` | Requirements backlog and product roadmap |
+| `AGENTS.md` | Mandatory rules for AI agents and verification checklist |
 
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
+---
 
-## Agentic Development
+## Offline-First Architecture & Batch Sync
 
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+The mobile app operates without a network connection, writing to its local database (Dexie/IndexedDB). The backend is designed exclusively for this paradigm:
 
-```bash
-composer require laravel/boost --dev
+- **Zero Chatty CRUD:** There are no individual mutation endpoints for Accounts or Transactions.
+- **Batch Sync (`POST /api/sync/push`):** The device packages its Outbox and sends a single request containing an array of operations. The backend processes everything inside a `DB::transaction`, evaluates business rules (plan limits, data consistency), and returns individual results per `opId`.
+- **Soft Deletes:** Accounts and Transactions use logical deletion to preserve historical integrity and allow correct state synchronization.
+- **Protected Default Account:** Every user has a permanent, immutable "Cash" account (`is_default = true`). The sync engine blocks with `403` any attempt to modify or delete it.
 
-php artisan boost:install
+---
+
+## Code Architecture (Clean Code + GoF)
+
+```
+app/
+├── Actions/          # Use-case orchestration (e.g. ProcessBatchSyncAction)
+├── Commands/Sync/    # Command pattern — one class per sync operation
+├── Constants/        # ApiMessage and HttpCode — zero magic strings
+├── DTOs/             # Immutable objects between Controller and Action
+├── Enums/            # Strongly typed types (AccountType, TransactionType...)
+├── Factories/        # SyncCommandFactory — Factory Method pattern
+├── Http/
+│   ├── Controllers/  # Thin layers: receive, map to DTO, respond
+│   ├── Requests/     # Input validation
+│   └── Resources/    # Full control over serialization to the client
+├── Models/           # Eloquent with SoftDeletes and canonical accessors
+└── Traits/           # ApiResponse — standard response envelope
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+**Applied principles:**
+- **OCP (Open-Closed):** New sync operations = new Command + registration in Factory. `ProcessBatchSyncAction` is never touched.
+- **SRP:** Controllers only map and respond. Logic lives in Actions.
+- **Strict Typing:** `declare(strict_types=1)` is mandatory in every PHP file.
+- **No magic strings:** Every API message comes from `ApiMessage`, every HTTP code from `HttpCode`, every type from `app/Enums`.
 
-## Contributing
+---
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+## Local Development Environment
 
-## Code of Conduct
+### Requirements
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+- Docker Desktop running on the host machine
+- PHP 8.3+ and Composer (only if running outside of Sail)
 
-## Security Vulnerabilities
+### Initial Setup
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+```bash
+# 1. Copy environment variables
+cp .env.example .env
+
+# 2. Install dependencies
+composer install
+
+# 3. Start containers
+./vendor/bin/sail up -d
+
+# 4. Generate application key
+./vendor/bin/sail artisan key:generate
+
+# 5. Run migrations
+./vendor/bin/sail artisan migrate
+
+# 6. Create admin and test users
+./vendor/bin/sail artisan db:seed --force
+```
+
+The seeder creates two users idempotently (`updateOrCreate`):
+
+| Email | Password | Role | Plan |
+|---|---|---|---|
+| `admin@rastro.com` | `admin123` | `admin` | `premium` |
+| `test@example.com` | `password` | `client` | `free` |
+
+### Common Commands (Linux / WSL / Git Bash)
+
+```bash
+./vendor/bin/sail up -d          # Start containers
+./vendor/bin/sail down           # Stop containers
+./vendor/bin/sail artisan migrate
+./vendor/bin/sail test
+./vendor/bin/sail shell          # Access the container shell
+```
+
+### Common Commands (Windows CMD / PowerShell)
+
+On Windows CMD the `./vendor/bin/sail` script is not directly executable. Commands are run against the active Docker container:
+
+```cmd
+docker exec -it rastro-backend-laravel.test-1 php artisan migrate
+docker exec -it rastro-backend-laravel.test-1 php artisan test
+docker exec -it rastro-backend-laravel.test-1 bash
+```
+
+---
+
+## Database
+
+| Environment | Engine | Configuration |
+|---|---|---|
+| Local | PostgreSQL 16 via Docker Sail | `DB_*` variables in `.env` pointing to the `pgsql` container service |
+| Production | Neon (serverless PostgreSQL) | `DB_*` variables configured in the Render dashboard |
+
+To connect to the Neon production database remotely (read-only or admin), use the credentials available in the Neon dashboard with any PostgreSQL-compatible client (pgAdmin, DBeaver, psql).
+
+---
+
+## Deployment on Render
+
+The service is configured as a **Web Service with Dockerfile**. Render builds the image directly from the Git repository using the `Dockerfile` at the project root.
+
+**Base image:** `php:8.5-cli` with `pdo` and `pdo_pgsql` extensions. Built with multi-stage Composer (`--no-dev --optimize-autoloader`).
+
+### Commands Configured in Render
+
+| Stage | Command |
+|---|---|
+| Build | *(empty — Render uses the `RUN` steps in the Dockerfile)* |
+| Pre-Deploy (Release) | `php artisan migrate --force && php artisan optimize` |
+| Start | `php artisan config:clear && php artisan migrate --force && php artisan serve --host=0.0.0.0 --port=$PORT` |
+
+Production environment variables (including Neon's `DATABASE_URL` and `APP_KEY`) are configured in the Render dashboard, not in the repository.
+
+---
+
+## Verification Checklist (before merging or deploying)
+
+Run in order. All must pass without errors.
+
+```bash
+# 1. Linter
+./vendor/bin/sail shell -c "./vendor/bin/pint --test"
+
+# 2. Tests
+./vendor/bin/sail test
+
+# 3. Security audit
+./vendor/bin/sail shell -c "composer audit"
+
+# 4. Cache optimization
+./vendor/bin/sail artisan optimize
+```
+
+On Windows CMD:
+
+```cmd
+docker exec -it rastro-backend-laravel.test-1 ./vendor/bin/pint --test
+docker exec -it rastro-backend-laravel.test-1 php artisan test
+docker exec -it rastro-backend-laravel.test-1 composer audit
+docker exec -it rastro-backend-laravel.test-1 php artisan optimize
+```
+
+---
 
 ## License
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+MIT — see [LICENSE](https://opensource.org/licenses/MIT)

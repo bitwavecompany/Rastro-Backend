@@ -1,54 +1,59 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers;
 
-use App\Http\Requests\StoreTransactionRequest;
-use App\Http\Requests\UpdateTransactionRequest;
-use App\Http\Requests\DestroyTransactionRequest;
+use App\Actions\Transactions\ExportTransactionsCsvAction;
+use App\Constants\ApiMessage;
+use App\Constants\HttpCode;
+use App\Http\Resources\TransactionResource;
+use App\Models\Transaction;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class TransactionController extends Controller
 {
-public function index(Request $request)
+    public function index(Request $request): JsonResponse
     {
-        $transactions = $request->user()->transactions()
-            ->when($request->query('kind'), function ($query, $kind) {
-                $query->where('kind', $kind);
-            })
-            ->when($request->query('account_id'), function ($query, $accountId) {
-                $query->where('account_id', $accountId);
-            })
-            ->withTrashed()
+        $user = $request->user();
+        $kind = $request->query('kind') ?? $request->query('type');
+
+        $perPage = min(100, max(1, $request->integer('per_page', 25)));
+
+        $transactions = $user->transactions()
+            ->with('account')
+            ->ofKind($kind)
+            ->forAccount($request->query('account_id'))
+            ->forUserPlan($user->plan)
+            ->activeOnly($request->boolean('active_only'))
             ->latest()
-            ->get();
-        
-        return $this->successResponse($transactions, 'Movimientos obtenidos correctamente');
+            ->paginate($perPage);
+
+        return $this->successResponse(
+            TransactionResource::collection($transactions->items()),
+            ApiMessage::TRANSACTIONS_FETCHED,
+            HttpCode::OK,
+            [
+                'page' => $transactions->currentPage(),
+                'per_page' => $transactions->perPage(),
+                'total' => $transactions->total(),
+            ]
+        );
     }
 
-    public function store(StoreTransactionRequest $request)
+    public function export(Request $request, ExportTransactionsCsvAction $action): StreamedResponse|JsonResponse
     {
-        $transaction = $request->user()->transactions()->create($request->validated());
+        $user = $request->user();
 
-        return $this->createdResponse($transaction, 'Registro guardado exitosamente');
-    }
+        if ($user->cannot('export', Transaction::class)) {
+            return $this->errorResponse(
+                ApiMessage::PREMIUM_REQUIRED,
+                HttpCode::FORBIDDEN
+            );
+        }
 
-    public function update(UpdateTransactionRequest $request, string $id)
-    {
-        $transaction = $request->user()->transactions()->findOrFail($id);
-
-        $transaction->update($request->validated());
-
-        return $this->successResponse($transaction, 'Registro actualizado correctamente');
-    }
-
-    public function destroy(DestroyTransactionRequest $request, string $id)
-    {
-        $transaction = $request->user()->transactions()->findOrFail($id);
-
-        $transaction->deleteReason = $request->validated('deleteReason');
-        $transaction->save();
-        $transaction->delete();
-
-        return $this->successResponse($transaction, 'Registro anulado correctamente');
+        return $action->handle($user);
     }
 }

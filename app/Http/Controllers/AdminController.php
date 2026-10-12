@@ -1,42 +1,115 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers;
 
+use App\Actions\Admin\ApprovePremiumRequestAction;
+use App\Actions\Admin\ManualCashUpgradeAction;
+use App\Actions\Admin\RejectPremiumRequestAction;
+use App\Actions\Admin\ToggleUserPlanAction;
+use App\Constants\ApiMessage;
+use App\Constants\HttpCode;
+use App\Enums\PremiumRequestStatus;
+use App\Enums\UserRole;
+use App\Http\Requests\AdminManualCashUpgradeRequest;
+use App\Http\Requests\AdminRejectPremiumRequest;
+use App\Http\Requests\AdminTogglePlanRequest;
+use App\Http\Resources\PremiumRequestResource;
+use App\Http\Resources\UserResource;
+use App\Models\PremiumRequest;
 use App\Models\User;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
 
 class AdminController extends Controller
 {
-    public function index()
+    public function index(Request $request): JsonResponse
     {
-        $users = User::where('role', 'client')->latest()->get([
-            'id', 'name', 'email', 'plan', 'created_at', 
-            'payment_method', 'payment_bank', 'payment_receipt'
-        ]);
+        $perPage = min(100, max(1, $request->integer('per_page', 25)));
 
-        return $this->successResponse($users, 'Lista de clientes obtenida');
+        $users = User::where('role', UserRole::Client)
+            ->latest()
+            ->paginate($perPage);
+
+        return $this->successResponse(
+            UserResource::collection($users->items()),
+            ApiMessage::USERS_FETCHED,
+            HttpCode::OK,
+            [
+                'page' => $users->currentPage(),
+                'per_page' => $users->perPage(),
+                'total' => $users->total(),
+            ]
+        );
     }
 
-    public function togglePlan(Request $request, string $id)
+    public function premiumRequests(Request $request): JsonResponse
+    {
+        $perPage = min(100, max(1, $request->integer('per_page', 25)));
+
+        $requests = PremiumRequest::where('status', PremiumRequestStatus::PendingVerification)
+            ->with('user')
+            ->latest()
+            ->paginate($perPage);
+
+        return $this->successResponse(
+            PremiumRequestResource::collection($requests->items()),
+            ApiMessage::PREMIUM_REQUESTS_FETCHED,
+            HttpCode::OK,
+            [
+                'page' => $requests->currentPage(),
+                'per_page' => $requests->perPage(),
+                'total' => $requests->total(),
+            ]
+        );
+    }
+
+    public function approveRequest(Request $request, string $id, ApprovePremiumRequestAction $action): JsonResponse
+    {
+        $premiumRequest = PremiumRequest::with('user')->findOrFail($id);
+
+        $updated = $action->handle($premiumRequest, $request->user());
+
+        return $this->successResponse(
+            new PremiumRequestResource($updated),
+            ApiMessage::PREMIUM_REQUEST_APPROVED
+        );
+    }
+
+    public function rejectRequest(AdminRejectPremiumRequest $request, string $id, RejectPremiumRequestAction $action): JsonResponse
+    {
+        $premiumRequest = PremiumRequest::with('user')->findOrFail($id);
+
+        $updated = $action->handle($premiumRequest, $request->toDto(), $request->user());
+
+        return $this->successResponse(
+            new PremiumRequestResource($updated),
+            ApiMessage::PREMIUM_REQUEST_REJECTED
+        );
+    }
+
+    public function manualCashUpgrade(AdminManualCashUpgradeRequest $request, string $id, ManualCashUpgradeAction $action): JsonResponse
     {
         $user = User::findOrFail($id);
 
-        $validated = $request->validate([
-            'plan' => ['required', Rule::in(['free', 'premium'])],
-            'payment_method' => ['nullable', 'required_if:plan,premium', Rule::in(['cash', 'transfer'])],
-            'payment_bank' => 'nullable|string|max:255',
-            'payment_receipt' => 'nullable|string|max:255',
-        ]);
+        $updatedUser = $action->handle($user, $request->toDto(), $request->user());
 
-        if ($validated['plan'] === 'free') {
-            $validated['payment_method'] = null;
-            $validated['payment_bank'] = null;
-            $validated['payment_receipt'] = null;
-        }
+        return $this->successResponse(
+            new UserResource($updatedUser),
+            ApiMessage::PLAN_UPDATED
+        );
+    }
 
-        $user->update($validated);
+    public function togglePlan(AdminTogglePlanRequest $request, string $id, ToggleUserPlanAction $action): JsonResponse
+    {
+        $user = User::findOrFail($id);
 
-        return $this->successResponse($user, "Plan actualizado a {$validated['plan']} exitosamente.");
+        $updatedUser = $action->handle($user, $request->toDto());
+
+        return $this->successResponse(
+            new UserResource($updatedUser),
+            ApiMessage::PLAN_UPDATED
+        );
     }
 }

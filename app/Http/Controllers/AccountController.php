@@ -1,46 +1,27 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers;
 
-// Importamos los Form Requests
-use App\Http\Requests\StoreAccountRequest;
-use App\Http\Requests\UpdateAccountRequest;
+use App\Constants\ApiMessage;
+use App\Http\Resources\AccountResource;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class AccountController extends Controller
 {
-    public function index(Request $request)
+    public function index(Request $request): JsonResponse
     {
-        return $this->successResponse($request->user()->accounts, 'Cuentas obtenidas correctamente');
-    }
+        $accounts = $request->user()->accounts()
+            ->ofType($request->query('type'))
+            ->activeOnly($request->boolean('active_only'))
+            ->latest()
+            ->get();
 
-    public function store(StoreAccountRequest $request)
-    {
-        
-        $account = $request->user()->accounts()->create($request->validated());
-
-        return $this->createdResponse($account, 'Cuenta creada exitosamente');
-    }
-
-    public function update(UpdateAccountRequest $request, string $id)
-    {
-        $account = $request->user()->accounts()->findOrFail($id);
-        
-        $account->update($request->validated());
-
-        return $this->successResponse($account, 'Cuenta actualizada correctamente');
-    }
-
-    public function destroy(Request $request, string $id)
-    {
-        $account = $request->user()->accounts()->findOrFail($id);
-
-        if ($account->transactions()->count() > 0) {
-            return $this->errorResponse('No puedes eliminar una cuenta que tiene movimientos registrados.', 409); 
-        }
-
-        $account->delete();
-
-        return $this->successResponse(null, 'Cuenta eliminada correctamente');
+        return $this->successResponse(
+            AccountResource::collection($accounts),
+            ApiMessage::ACCOUNTS_FETCHED
+        );
     }
 }

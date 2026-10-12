@@ -25,3 +25,12 @@ _ide_helper.php
 Homestead.json
 Homestead.yaml
 Thumbs.db
+
+rebuild-graph.bat
+
+# Local Agents and Skills
+/.agents/
+
+# Graphify Outputs
+/graphify-out/
+skills-lock.json
