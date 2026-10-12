@@ -1,172 +1,142 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers;
 
-use App\Models\User;
-use App\Http\Requests\RegisterSyncRequest;
+use App\Actions\Auth\DeleteUserAccountAction;
+use App\Actions\Auth\LoginUserAction;
+use App\Actions\Auth\LogoutUserAction;
+use App\Actions\Auth\RegisterAndSyncUserAction;
+use App\Actions\Auth\RequestPremiumUpgradeAction;
+use App\Constants\ApiMessage;
+use App\Constants\HttpCode;
+use App\Enums\ErrorCode;
+use App\Exceptions\SessionLimitReachedException;
 use App\Http\Requests\LoginRequest;
+use App\Http\Requests\RefreshTokenRequest;
+use App\Http\Requests\RegisterSyncRequest;
 use App\Http\Requests\UpdateProfileRequest;
+use App\Http\Requests\UpgradePremiumRequest;
+use App\Http\Resources\AccountResource;
+use App\Http\Resources\TransactionResource;
+use App\Http\Resources\UserResource;
+use App\Services\Auth\TokenService;
+use Exception;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\ValidationException;
-use Illuminate\Support\Facades\Mail;
-use App\Mail\PremiumRequestMail;
 
 class AuthController extends Controller
 {
-    public function registerSync(RegisterSyncRequest $request)
+    public function registerSync(RegisterSyncRequest $request, RegisterAndSyncUserAction $action): JsonResponse
     {
-        DB::beginTransaction();
+        $result = $action->handle($request->toDto());
 
+        return $this->createdResponse([
+            'token' => $result['token'],
+            'access_token' => $result['access_token'],
+            'refresh_token' => $result['refresh_token'],
+            'token_type' => $result['token_type'],
+            'expires_in' => $result['expires_in'],
+            'user' => new UserResource($result['user']),
+            'syncedData' => [
+                'accounts' => AccountResource::collection($result['syncedData']['accounts']),
+                'transactions' => TransactionResource::collection($result['syncedData']['transactions']),
+            ],
+        ], ApiMessage::SUCCESS);
+    }
+
+    public function login(LoginRequest $request, LoginUserAction $action): JsonResponse
+    {
         try {
-            $user = User::create([
-                'name' => $request->name,
-                'email' => $request->email,
-                'password' => Hash::make($request->password),
-            ]);
+            $result = $action->handle($request->toDto(), $request->ip());
 
-            $accountMapping = [];
-            $savedAccounts = [];
-            $savedTransactions = [];
-
-            $localAccounts = $request->input('localData.accounts', []);
-
-            if (count($localAccounts) > 0) {
-                foreach ($localAccounts as $localAccount) {
-                    $account = $user->accounts()->create([
-                        'name' => $localAccount['name'],
-                        'type' => $localAccount['type'],
-                        'amount' => $localAccount['amount'],
-                        'description' => $localAccount['description'] ?? null,
-                    ]);
-                    
-                    $accountMapping[$localAccount['id']] = $account->id;
-                    $savedAccounts[] = $account;
-                }
-            } else {
-                $savedAccounts[] = $user->accounts()->create([
-                    'name' => 'Efectivo',
-                    'type' => 'cash',
-                    'amount' => 0,
-                    'description' => 'Cuenta principal por defecto'
-                ]);
-            }
-
-            if ($request->has('localData.transactions')) {
-                foreach ($request->input('localData.transactions') as $localTx) {
-                    $realAccountUuid = $accountMapping[$localTx['accountId']] ?? null;
-
-                    if ($realAccountUuid) {
-                        $tx = $user->transactions()->create([
-                            'account_id' => $realAccountUuid,
-                            'kind' => $localTx['kind'],
-                            'amount' => $localTx['amount'],
-                            'reason' => $localTx['reason'],
-                            'description' => $localTx['description'] ?? null,
-                            'paymentType' => $localTx['paymentType'],
-                            'deleteReason' => $localTx['deleteReason'] ?? null,
-                        ]);
-
-                        if (isset($localTx['deletedAt']) && $localTx['deletedAt']) {
-                            $tx->deleted_at = $localTx['deletedAt'];
-                            $tx->save();
-                        }
-                        $savedTransactions[] = $tx;
-                    }
-                }
-            }
-
-            DB::commit();
-
-            $user->refresh();
-
-            $token = $user->createToken('auth_token')->plainTextToken;
-
-            return $this->createdResponse([
-                'token' => $token,
-                'user' => $user,
-                'syncedData' => [
-                    'accounts' => $savedAccounts,
-                    'transactions' => $savedTransactions
-                ]
-            ], 'Registro y sincronización exitosos');
-
-        } catch (\Exception $e) {
-            DB::rollBack();
+            return $this->successResponse([
+                'token' => $result['tokenData']['token'],
+                'access_token' => $result['tokenData']['access_token'],
+                'refresh_token' => $result['tokenData']['refresh_token'],
+                'token_type' => $result['tokenData']['token_type'],
+                'expires_in' => $result['tokenData']['expires_in'],
+                'user' => new UserResource($result['user']),
+            ], ApiMessage::SUCCESS);
+        } catch (SessionLimitReachedException $e) {
             return $this->errorResponse(
-                config('app.debug') ? $e->getMessage() : 'Error interno al sincronizar los datos', 
-                500
+                $e->getMessage(),
+                HttpCode::CONFLICT,
+                null,
+                ErrorCode::SessionLimitReached
             );
         }
     }
 
-    public function login(LoginRequest $request)
+    public function refresh(RefreshTokenRequest $request, TokenService $tokenService): JsonResponse
     {
-        $user = User::where('email', $request->email)->first();
+        try {
+            $result = $tokenService->refreshToken(
+                $request->toDto()->refreshToken,
+                $request->ip()
+            );
 
-        if (! $user || ! Hash::check($request->password, $user->password)) {
-            throw ValidationException::withMessages([
-                'email' => ['Las credenciales son incorrectas.'],
-            ]);
+            return $this->successResponse([
+                'token' => $result['token'],
+                'access_token' => $result['access_token'],
+                'refresh_token' => $result['refresh_token'],
+                'token_type' => $result['token_type'],
+                'expires_in' => $result['expires_in'],
+                'user' => new UserResource($result['user']),
+            ], ApiMessage::SUCCESS);
+        } catch (Exception $e) {
+            $code = $e->getCode() ?: HttpCode::UNAUTHORIZED;
+            $errorCode = ($e->getMessage() === ApiMessage::SESSION_REVOKED_REMOTE)
+                ? ErrorCode::SessionRevokedRemote
+                : ErrorCode::InvalidRefreshToken;
+
+            return $this->errorResponse(
+                $e->getMessage(),
+                $code,
+                null,
+                $errorCode
+            );
         }
-
-        if ($user->accounts()->count() === 0) {
-            $user->accounts()->create([
-                'name' => 'Efectivo',
-                'type' => 'cash',
-                'amount' => 0,
-                'description' => 'Cuenta principal por defecto'
-            ]);
-        }
-
-        $token = $user->createToken('auth_token')->plainTextToken;
-
-        return $this->successResponse([
-            'token' => $token,
-            'user' => $user
-        ], 'Inicio de sesión exitoso');
     }
 
-    public function me(Request $request)
+    public function me(Request $request): JsonResponse
     {
-        return $this->successResponse($request->user(), 'Perfil obtenido correctamente');
+        return $this->successResponse(new UserResource($request->user()), ApiMessage::SUCCESS);
     }
 
-    public function updateMe(UpdateProfileRequest $request)
+    public function updateMe(UpdateProfileRequest $request): JsonResponse
     {
         $user = $request->user();
-        
-        $user->update($request->validated());
-
-        return $this->successResponse($user, 'Perfil actualizado correctamente');
-    }
-
-    public function upgradeRequest(Request $request)
-    {
-        $validated = $request->validate([
-            'payment_method' => 'required|in:cash,transfer',
-            'payment_bank' => 'required_if:payment_method,transfer|string|max:255',
-            'payment_receipt' => 'required|string|max:255',
-        ]);
-
-        $user = $request->user();
-        
+        $dto = $request->toDto();
         $user->update([
-            'payment_method' => $validated['payment_method'],
-            'payment_bank' => $validated['payment_bank'] ?? null,
-            'payment_receipt' => $validated['payment_receipt'],
+            'name' => $dto->name,
         ]);
 
-        Mail::to('bitwave.company@gmail.com')->send(new PremiumRequestMail($user));
-
-        return $this->successResponse($user, 'Solicitud de Premium recibida. En espera de verificación.');
+        return $this->successResponse(new UserResource($user), ApiMessage::SUCCESS);
     }
 
-    public function logout(Request $request)
+    public function upgradeRequest(UpgradePremiumRequest $request, RequestPremiumUpgradeAction $action): JsonResponse
     {
-        $request->user()->currentAccessToken()->delete();
-        
-        return $this->successResponse(null, 'Sesión cerrada exitosamente');
+        $action->handle($request->user(), $request->toDto());
+
+        return $this->successResponse(
+            new UserResource($request->user()->fresh()),
+            ApiMessage::PREMIUM_REQUEST_SUBMITTED
+        );
+    }
+
+    public function logout(Request $request, LogoutUserAction $action): JsonResponse
+    {
+        $action->handle($request->user());
+
+        return $this->successResponse(null, ApiMessage::SUCCESS);
+    }
+
+    public function deleteAccount(Request $request, DeleteUserAccountAction $action): JsonResponse
+    {
+        $action->handle($request->user());
+
+        return $this->successResponse(null, ApiMessage::SUCCESS);
     }
 }

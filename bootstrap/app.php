@@ -1,14 +1,20 @@
 <?php
 
+declare(strict_types=1);
+
+use App\Constants\ApiMessage;
+use App\Constants\HttpCode;
+use App\Http\Middleware\AdminMiddleware;
+use App\Http\Middleware\CheckSessionRevocationMiddleware;
+use Illuminate\Auth\AuthenticationException;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
-use Illuminate\Auth\AuthenticationException;
 use Illuminate\Validation\ValidationException;
-use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
-use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -19,11 +25,11 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
-            'admin' => \App\Http\Middleware\AdminMiddleware::class,
+            'admin' => AdminMiddleware::class,
+            'session.active' => CheckSessionRevocationMiddleware::class,
         ]);
-        
-        $middleware->redirectGuestsTo(fn (Request $request) => 
-            $request->is('api/*') ? null : route('login')
+
+        $middleware->redirectGuestsTo(fn (Request $request) => $request->is('api/*') ? null : route('login')
         );
     })
     ->withExceptions(function (Exceptions $exceptions): void {
@@ -33,29 +39,39 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $exceptions->render(function (Throwable $e, Request $request) {
             if ($request->is('api/*')) {
+                $status = HttpCode::INTERNAL_ERROR;
+                $message = ApiMessage::SERVER_ERROR;
+                $meta = config('app.debug') ? ['debug' => $e->getMessage()] : null;
+
                 if ($e instanceof AuthenticationException) {
-                    return response()->json(['message' => 'Acceso denegado. Token inválido o ausente.'], 401);
-                }
-                
-                if ($e instanceof AccessDeniedHttpException) {
-                    return response()->json(['message' => 'No tienes permisos para realizar esta acción.'], 403);
+                    $status = HttpCode::UNAUTHORIZED;
+                    $message = ApiMessage::UNAUTHORIZED;
+                    $meta = null;
+                } elseif ($e instanceof AccessDeniedHttpException) {
+                    $status = HttpCode::FORBIDDEN;
+                    $message = ApiMessage::FORBIDDEN;
+                    $meta = null;
+                } elseif ($e instanceof NotFoundHttpException || $e instanceof ModelNotFoundException) {
+                    $status = HttpCode::NOT_FOUND;
+                    $message = ApiMessage::NOT_FOUND;
+                    $meta = null;
+                } elseif ($e instanceof ValidationException) {
+                    $status = HttpCode::UNPROCESSABLE_ENTITY;
+                    $message = ApiMessage::VALIDATION_ERROR;
+                    $meta = ['errors' => $e->errors()];
                 }
 
-                if ($e instanceof NotFoundHttpException || $e instanceof ModelNotFoundException) {
-                    return response()->json(['message' => 'El recurso que buscas no existe o fue eliminado.'], 404);
+                $response = [
+                    'success' => false,
+                    'message' => $message,
+                    'data' => null,
+                ];
+
+                if ($meta !== null) {
+                    $response['meta'] = $meta;
                 }
 
-                if ($e instanceof ValidationException) {
-                    return response()->json([
-                        'message' => 'Los datos enviados son inválidos.',
-                        'errors' => $e->errors()
-                    ], 422);
-                }
-
-                return response()->json([
-                    'message' => 'Ocurrió un error inesperado en el servidor.',
-                    'error' => config('app.debug') ? $e->getMessage() : 'Error interno'
-                ], 500);
+                return response()->json($response, $status);
             }
         });
     })->create();

@@ -12,6 +12,9 @@
             <li><strong>Método:</strong> {{ $user->payment_method === 'transfer' ? 'Transferencia' : 'Efectivo' }}</li>
             <li><strong>Banco:</strong> {{ $user->payment_bank ?? 'No especificado' }}</li>
             <li><strong>N° de Comprobante:</strong> <span style="font-family: monospace; font-size: 16px;">{{ $user->payment_receipt }}</span></li>
+            @if(isset($dateFormatted) && $dateFormatted)
+            <li><strong>Fecha de Solicitud:</strong> {{ $dateFormatted }}</li>
+            @endif
         </ul>
     </div>
 
