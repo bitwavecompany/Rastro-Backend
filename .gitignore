@@ -34,3 +34,4 @@ rebuild-graph.bat
 # Graphify Outputs
 /graphify-out/
 skills-lock.json
+ngrok.exe
