@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Http\Controllers\AccountController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\SyncController;
 use App\Http\Controllers\TransactionController;
 use Illuminate\Support\Facades\Route;
@@ -34,6 +35,7 @@ Route::middleware(['auth:sanctum', 'session.active'])->group(function () {
     Route::get('/accounts', [AccountController::class, 'index']);
     Route::get('/transactions', [TransactionController::class, 'index']);
     Route::get('/transactions/export', [TransactionController::class, 'export']);
+    Route::get('/categories', [CategoryController::class, 'index']);
 });
 
 Route::middleware(['auth:sanctum', 'session.active', 'admin'])->prefix('admin')->group(function () {

@@ -58,6 +58,8 @@ class ApiMessage
 
     public const PLAN_UPDATED = 'Plan de usuario actualizado exitosamente.';
 
+    public const CATEGORIES_FETCHED = 'Categorías obtenidas exitosamente.';
+
     public const PREMIUM_REQUEST_SUBMITTED = 'Tu solicitud fue recibida. La revisaremos en un plazo máximo de 24 horas.';
 
     public const PREMIUM_REQUESTS_FETCHED = 'Solicitudes Premium obtenidas exitosamente.';

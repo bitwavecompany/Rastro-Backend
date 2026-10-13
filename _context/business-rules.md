@@ -60,17 +60,18 @@ This document is the source of truth for Rastro's business logic. It dictates th
 
 Upon launching the app for the first time, the system automatically creates an account named "Cash" for every new user, whether Guest or Registered. This account has three absolute properties with no exceptions:
 
-- **Immutable:** the name, type (`cash`), and initial balance cannot be edited under any circumstance.
+- **Type-locked & Named:** the name ("Cash") and type (`cash`) cannot be edited under any circumstance.
 - **Permanent:** it cannot be deactivated or deleted.
+- **Editable initial balance:** its `initial_balance` (and optional description) can be edited to record and adjust opening capital without distorting monthly income metrics.
 - **Occupies 1 slot** of the user's plan at all times.
 
 ### Fields
 
 | Field | Type | Rules |
 |---|---|---|
-| `name` | `string` | Required. Unique per user — duplicate names are not allowed. |
-| `type` | `'cash' \| 'bank'` | Required. Editable under conditions (see Account Type Editing). Immutable only for the "Cash" account. |
-| `initial_balance` | `number` | Required. Must be ≥ 0. Editable to correct entry errors — not as a subsequent accounting adjustment. |
+| `name` | `string` | Required. Unique per user — duplicate names are not allowed. Immutable for "Cash". |
+| `type` | `'cash' \| 'bank'` | Required. Editable under conditions (see Account Type Editing). Immutable (`cash`) for the "Cash" account. |
+| `initial_balance` | `number` | Required. Must be ≥ 0. Editable on all accounts (including the default "Cash" account) to set or correct opening balance — not as a subsequent accounting adjustment. |
 | `amount` | `number` | Read-only. Calculated and returned by the server in every response. The client never calculates or sends it. |
 | `description` | `string \| null` | Optional. |
 | `is_default` | `boolean` | `true` only for the auto-created "Cash" account. |
@@ -147,7 +148,7 @@ This change does not alter amounts or balances. It only aligns the `payment_meth
 | `created_at` | `string` | ISO8601. DB creation timestamp. Immutable. Assigned by the server. Not visible or editable. |
 | `updated_at` | `string` | ISO8601. Last modification timestamp. Automatically updated. Not visible or editable. |
 | `transfer_id` | `string \| null` | Reserved for transfers between own accounts (Backlog). Store as `null`. |
-| `category` | `string \| null` | Reserved for future use. Store as `null`. |
+| `category` | `'comida' \| 'transporte' \| 'entretenimiento' \| 'estudio' \| 'trabajo' \| 'otros' \| null` | Mandatory for `expense` transactions. Must be selected from the backend catalog (`GET /api/categories`). Null for `income` transactions. |
 | `tags` | `string[]` | Reserved for future use. Store as `[]`. |
 | `deleted_at` | `string \| null` | `null` = active. ISO8601 Timestamp = deactivated. |
 | `deletion_reason` | `string \| null` | Optional note when manually deactivating. Mandatory reason for relocations. Value is `'cascade_account_deactivation'` when the transaction is deactivated due to its account cascading. |

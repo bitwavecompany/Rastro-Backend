@@ -452,4 +452,44 @@ class AccountTest extends TestCase
 
         $this->assertEquals('Efectivo', $defaultAccount->fresh()->name);
     }
+
+    public function test_modificar_saldo_inicial_en_cuenta_por_defecto_es_permitido(): void
+    {
+        /** @var User $user */
+        $user = User::factory()->create();
+
+        $defaultAccount = $user->accounts()->create([
+            'name' => 'Efectivo',
+            'type' => AccountType::Cash,
+            'amount' => 0.0,
+            'is_default' => true,
+        ]);
+
+        $updatePayload = [
+            'operations' => [
+                [
+                    'opId' => (string) Str::uuid(),
+                    'entity' => 'accounts',
+                    'op' => 'update',
+                    'payload' => [
+                        'id' => $defaultAccount->id,
+                        'amount' => 350.50,
+                        'description' => 'Ahorros iniciales',
+                    ],
+                ],
+            ],
+        ];
+
+        $response = $this->actingAs($user)->postJson('/api/sync/push', $updatePayload);
+        $response->assertStatus(200)
+            ->assertJsonPath('data.results.0.status', 'success');
+
+        $refreshed = $defaultAccount->fresh();
+        $this->assertEquals(350.50, $refreshed->initial_balance);
+        $this->assertEquals(350.50, $refreshed->amount);
+        $this->assertEquals('Ahorros iniciales', $refreshed->description);
+        $this->assertTrue($refreshed->is_default);
+        $this->assertEquals('Efectivo', $refreshed->name);
+        $this->assertEquals(AccountType::Cash, $refreshed->type);
+    }
 }

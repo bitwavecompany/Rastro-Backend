@@ -27,7 +27,12 @@ class UpdateAccountCommand implements SyncCommandInterface
         $account = $user->accounts()->findOrFail($this->payload['id']);
 
         if ($account->is_default) {
-            throw new Exception(ApiMessage::ACCOUNT_DEFAULT_PROTECTED, HttpCode::FORBIDDEN);
+            if (isset($this->payload['type']) && $this->payload['type'] !== $account->type->value) {
+                throw new Exception(ApiMessage::ACCOUNT_DEFAULT_PROTECTED, HttpCode::FORBIDDEN);
+            }
+            if (isset($this->payload['name']) && $this->payload['name'] !== $account->name) {
+                throw new Exception(ApiMessage::ACCOUNT_DEFAULT_PROTECTED, HttpCode::FORBIDDEN);
+            }
         }
 
         $validator = Validator::make($this->payload, [
@@ -43,6 +48,7 @@ class UpdateAccountCommand implements SyncCommandInterface
             ],
             'type' => ['sometimes', Rule::enum(AccountType::class)],
             'amount' => ['sometimes', 'numeric', 'min:0'],
+            'initial_balance' => ['sometimes', 'numeric', 'min:0'],
             'description' => ['nullable', 'string', 'max:500'],
         ], [
             'name.unique' => ApiMessage::ACCOUNT_NAME_DUPLICATE,
@@ -67,7 +73,7 @@ class UpdateAccountCommand implements SyncCommandInterface
             }
         }
 
-        unset($validated['id']);
+        unset($validated['id'], $validated['is_default']);
         $account->update($validated);
     }
 }

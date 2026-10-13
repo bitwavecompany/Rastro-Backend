@@ -9,6 +9,7 @@ use App\Constants\HttpCode;
 use App\Contracts\SyncCommandInterface;
 use App\Enums\AccountType;
 use App\Enums\PaymentMethod;
+use App\Enums\TransactionCategory;
 use App\Enums\TransactionKind;
 use App\Models\Account;
 use App\Models\User;
@@ -27,12 +28,28 @@ class UpdateTransactionCommand implements SyncCommandInterface
             throw new Exception(ApiMessage::MISSING_ID, HttpCode::BAD_REQUEST);
         }
 
+        $transaction = $user->transactions()->findOrFail($this->payload['id']);
+
         $data = $this->payload;
         if (isset($data['type']) && ! isset($data['kind'])) {
             $data['kind'] = $data['type'];
         }
         if (isset($data['payment_method']) && ! isset($data['paymentType'])) {
             $data['paymentType'] = $data['payment_method'];
+        }
+
+        if (isset($data['category']) && is_string($data['category'])) {
+            $data['category'] = strtolower(trim($data['category']));
+        }
+
+        $effectiveKind = $data['kind'] ?? $transaction->type?->value ?? $transaction->kind?->value;
+        $isExpense = ($effectiveKind === TransactionKind::Expense->value);
+
+        $categoryRules = ['nullable'];
+        if ($isExpense) {
+            if (array_key_exists('category', $data) || empty($transaction->category)) {
+                $categoryRules = ['required', Rule::enum(TransactionCategory::class)];
+            }
         }
 
         $validator = Validator::make($data, [
@@ -44,7 +61,7 @@ class UpdateTransactionCommand implements SyncCommandInterface
             'description' => ['nullable', 'string', 'max:500'],
             'paymentType' => ['sometimes', Rule::enum(PaymentMethod::class)],
             'date' => ['nullable', 'date'],
-            'category' => ['nullable', 'string', 'max:255'],
+            'category' => $categoryRules,
             'tags' => ['nullable', 'array'],
             'transfer_id' => ['nullable', 'uuid'],
         ]);
@@ -54,7 +71,10 @@ class UpdateTransactionCommand implements SyncCommandInterface
         }
 
         $validated = $validator->validated();
-        $transaction = $user->transactions()->findOrFail($validated['id']);
+
+        if (! $isExpense && array_key_exists('kind', $validated)) {
+            $validated['category'] = null;
+        }
 
         $targetAccountId = $validated['account_id'] ?? $transaction->account_id;
         $targetPaymentType = $validated['paymentType'] ?? $transaction->paymentType;

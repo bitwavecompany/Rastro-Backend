@@ -26,7 +26,6 @@ An actual transfer represents money that was physically moved from one account t
 - Payment gateways (Stripe, PayPhone, PlacetoPay, etc.)
 - Push notifications — only email notifications are in scope
 - Multi-currency support — `currency` field reserved in `Account`
-- Transaction categories — `category` field reserved in `Transaction`
 - Tags and tag filtering — `tags` field reserved in `Transaction`
 - Budgets and spending limit alerts
 - Recurring transactions

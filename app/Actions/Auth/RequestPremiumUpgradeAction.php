@@ -41,7 +41,7 @@ final class RequestPremiumUpgradeAction
         try {
             $adminEmail = (string) config('mail.admin_address', 'bitwave.company@gmail.com');
             Log::info("Enviando correo de solicitud Premium a {$adminEmail} para el usuario {$user->id}...");
-            Mail::to($adminEmail)->send(new PaymentProofSubmittedMail($user));
+            Mail::to($adminEmail)->send(new PaymentProofSubmittedMail($user, $premiumRequest));
             Log::info("Correo de solicitud Premium enviado exitosamente a {$adminEmail} para el usuario {$user->id}");
         } catch (\Throwable $e) {
             Log::error("Fallo al enviar correo de solicitud Premium: {$e->getMessage()}", [

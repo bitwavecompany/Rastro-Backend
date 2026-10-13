@@ -54,7 +54,7 @@ Every concept in the system has a **single field name**, used identically across
 | | `description` | `string \| null` | `$table->text('description')->nullable()` | Nullable | Notes or relocation traceability (Rule 16) |
 | | `payment_method` | `PaymentMethod` | `$table->string('payment_method')` | 'cash', 'transfer' | Consistent with `account.type` (Rule 6) |
 | | `date` | `string` | `$table->date('date')` | YYYY-MM-DD | Visible transaction date |
-| | `category` | `string \| null` | `$table->string('category')->nullable()` | Default null | Reserved for future use |
+| | `category` | `TransactionCategory \| null` | `$table->string('category')->nullable()` | 'comida', 'transporte', 'entretenimiento', 'estudio', 'trabajo', 'otros' | Mandatory for 'expense', null for 'income' |
 | | `tags` | `string[]` | `$table->json('tags')->default('[]')` | Default '[]' | Descriptive tags (JSON) |
 | | `transfer_id` | `string \| null` | `$table->uuid('transfer_id')->nullable()` | Nullable, Indexed | Transfer link between accounts |
 | | `deletion_reason` | `DeletionReason` | `$table->string('deletion_reason')->nullable()` | Nullable | Deactivation / relocation reason |
@@ -120,6 +120,16 @@ enum TransactionType: string
 {
     case Income = 'income';
     case Expense = 'expense';
+}
+
+enum TransactionCategory: string
+{
+    case Food = 'comida';
+    case Transport = 'transporte';
+    case Entertainment = 'entretenimiento';
+    case Study = 'estudio';
+    case Work = 'trabajo';
+    case Other = 'otros';
 }
 
 enum PaymentMethod: string

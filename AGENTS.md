@@ -24,7 +24,7 @@ No code suggestion can contradict what these documents establish. In case of con
 
 - **Strict typing:** Never invent types that are not in the PRD. Accounts can only be `cash` or `bank`. Transactions can only be `income` or `expense`.
 - **Soft Deletes:** All deletions of financial entities (Accounts, Transactions) must be logical (`SoftDeletes`). Using `forceDelete()` is forbidden except in total user deletion (`DELETE /api/auth/me`) and explicit purge operations from the sync catalog (`hard-delete`, `purge-account`, `purge-all`).
-- **Untouchable Default Account:** Every user has a "Cash" account with `is_default = true`. Modifying or deleting this account is forbidden under any circumstance. When creating actions, commands, or endpoints related to accounts, always verify and protect this flag before executing any mutation.
+- **Default Account Protection:** Every user has a "Cash" account with `is_default = true`. Deleting, deactivating, or changing its type (`cash`) or name is strictly forbidden under any circumstance. However, editing its `initial_balance` and description is allowed so users can record and correct their opening capital without distorting monthly income metrics. Always protect `is_default = true` and `type = 'cash'` before executing any account mutation.
 
 ---
 
@@ -75,7 +75,7 @@ Do not use `if/else` in the sync pipeline to branch operations.
 `declare(strict_types=1)` is mandatory in every PHP file. All arguments and returns must be typed.
 
 ### Enums
-Using magic strings for domain types is forbidden. Always use `app/Enums` (`AccountType::Cash`, `TransactionType::Income`, `OutboxOperation::Relocate`, etc.).
+Using magic strings for domain types is forbidden. Always use `app/Enums` (`AccountType::Cash`, `TransactionType::Income`, `TransactionCategory::Food`, `OutboxOperation::Relocate`, etc.).
 
 ### Actions
 Controllers are thin layers: receive request, map to DTO, invoke Action, return Resource. Business logic goes in `app/Actions`.

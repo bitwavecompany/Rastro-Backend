@@ -9,6 +9,7 @@ use App\Constants\HttpCode;
 use App\Contracts\SyncCommandInterface;
 use App\Enums\AccountType;
 use App\Enums\PaymentMethod;
+use App\Enums\TransactionCategory;
 use App\Enums\TransactionKind;
 use App\Models\Account;
 use App\Models\User;
@@ -32,6 +33,12 @@ class CreateTransactionCommand implements SyncCommandInterface
             $data['paymentType'] = $data['payment_method'];
         }
 
+        if (isset($data['category']) && is_string($data['category'])) {
+            $data['category'] = strtolower(trim($data['category']));
+        }
+
+        $isExpense = ($data['kind'] ?? null) === TransactionKind::Expense->value;
+
         $validator = Validator::make($data, [
             'id' => ['required', 'uuid'],
             'account_id' => ['required', 'uuid'],
@@ -41,7 +48,9 @@ class CreateTransactionCommand implements SyncCommandInterface
             'description' => ['nullable', 'string', 'max:500'],
             'paymentType' => ['required', Rule::enum(PaymentMethod::class)],
             'date' => ['nullable', 'date'],
-            'category' => ['nullable', 'string', 'max:255'],
+            'category' => $isExpense
+                ? ['required', Rule::enum(TransactionCategory::class)]
+                : ['nullable'],
             'tags' => ['nullable', 'array'],
             'transfer_id' => ['nullable', 'uuid'],
         ]);
@@ -51,6 +60,10 @@ class CreateTransactionCommand implements SyncCommandInterface
         }
 
         $validated = $validator->validated();
+
+        if (! $isExpense) {
+            $validated['category'] = null;
+        }
 
         /** @var Account|null $account */
         $account = $user->accounts()->withTrashed()->find($validated['account_id']);

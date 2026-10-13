@@ -111,8 +111,8 @@ return [
     */
 
     'from' => [
-        'address' => env('MAIL_FROM_ADDRESS', 'hello@example.com'),
-        'name' => env('MAIL_FROM_NAME', env('APP_NAME', 'Laravel')),
+        'address' => env('MAIL_FROM_ADDRESS', 'noreply@rastro.app'),
+        'name' => env('MAIL_FROM_NAME', env('APP_NAME', 'Rastro')),
     ],
 
     'admin_address' => env('ADMIN_NOTIFICATION_EMAIL', 'bitwave.company@gmail.com'),

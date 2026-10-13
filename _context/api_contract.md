@@ -220,7 +220,7 @@ Represents a financial transaction. The resource **exclusively outputs `snake_ca
 | `description` | `string|null` | Extended details and relocation audit notes (Rule 16). |
 | `payment_method` | `string` | `'cash'` | `'transfer'`. Consistent with `account.type` (Rule 6). |
 | `date` | `string` | Transaction date in `YYYY-MM-DD` format. No time component. |
-| `category` | `string|null` | Optional category. |
+| `category` | `string|null` | Mandatory for `type = 'expense'`: `'comida'`, `'transporte'`, `'entretenimiento'`, `'estudio'`, `'trabajo'`, `'otros'`. Null for `type = 'income'`. |
 | `tags` | `array<string>` | Descriptive tags for the transaction. |
 | `transfer_id` | `uuid|null` | Link identifier for transfers between own accounts. |
 | `deletion_reason` | `string|null` | Deactivation reason (`cascade_account_deactivation` or relocation note). |
@@ -600,12 +600,12 @@ Single source of truth (SSOT) for Premium Plan upgrade requests and their approv
 | Entity | Canonical Operation (`op`) | Required Payload | Business Rules and Validations |
 | --- | --- | --- | --- |
 | `accounts` | `create` | `{"id": "uuid", "name": "string", "type": "cash|bank", "initial_balance": number, "description": "string|null", "currency": "USD"}` | `name` must be unique per user among active accounts (`422 ACCOUNT_NAME_DUPLICATE`). `initial_balance >= 0` (`amount` is also accepted). Free Plan blocks this if there are already $\ge 3$ active accounts (`403 LIMIT_ACCOUNTS`). |
-| `accounts` | `update` | `{"id": "uuid", "name": "string|null", "type": "cash|bank|null", "amount": number|null", "description": "string|null"}` | Blocked if `is_default = true` (`403 ACCOUNT_DEFAULT_PROTECTED`). **Rules 4 and 5:** Changing the type executes a cascading mutation over all transactions (see section 4.3). The `amount` field in this payload represents the editable initial balance of the account. An internal model mutator persists it in the physical `initial_balance` column. Do not confuse it with the `amount` field in `AccountResource`, which is the dynamic calculated balance. |
+| `accounts` | `update` | `{"id": "uuid", "name": "string|null", "type": "cash|bank|null", "amount": number|null", "description": "string|null"}` | If `is_default = true`, modifying `type` or `name` is blocked (`403 ACCOUNT_DEFAULT_PROTECTED`), but updating `initial_balance` (or `amount`) and `description` is allowed to record or correct opening capital. **Rules 4 and 5:** Changing the type executes a cascading mutation over all transactions (see section 4.3). The `amount` field in this payload represents the editable initial balance of the account. An internal model mutator persists it in the physical `initial_balance` column. Do not confuse it with the `amount` field in `AccountResource`, which is the dynamic calculated balance. |
 | `accounts` | `delete` | `{"id": "uuid", "deactivation_reason": "user_action|plan_downgrade|null"}` | Blocked if `is_default = true` (`403 ACCOUNT_DEFAULT_PROTECTED`). Soft Delete of the account; **cascades deactivation to all its transactions** with `deletion_reason = 'cascade_account_deactivation'` (Rule 18). Immediately frees up an account slot. |
 | `accounts` | `restore` | `{"id": "uuid"}` | Reactivates the account (`deleted_at = null`, `deactivation_reason = null`). Validates available slot in Free Plan (`403 LIMIT_ACCOUNTS`). **No cascade:** Does not reactivate the associated transactions (Rule 6.3). |
 | `accounts` | `hard-delete` | `{"id": "uuid"}` | **Irreversible permanent deletion of the account (Rules 6.2 and 20).** Authorized exception in the downgrade resolution modal. Physically deletes the account and all its records. Blocked for the default account (`403 ACCOUNT_DEFAULT_PROTECTED`). |
-| `transactions` | `create` | `{"id": "uuid", "account_id": "uuid", "type": "income|expense", "amount": number, "reason": "string", "payment_method": "cash|transfer", "description": "string|null", "date": "YYYY-MM-DD|ISO8601|null", "category": null, "tags": [], "transfer_id": "uuid|null"}` | Unlimited across all plans. `amount > 0`. **Rule 6:** Account must be active (`403 ACCOUNT_INACTIVE`) and its type must match the method (`403 ACCOUNT_TYPE_MISMATCH`). Date without time automatically receives `now()` from the server (PRD 4.4). |
-| `transactions` | `update` | `{"id": "uuid", "account_id": "uuid|null", "type": "income|expense|null", "amount": number|null", "reason": "string|null", "payment_method": "cash|transfer|null", ...}` | **Rule 6:** Requires an active destination account (`403 ACCOUNT_INACTIVE`) and payment method consistency (`403 ACCOUNT_TYPE_MISMATCH`). |
+| `transactions` | `create` | `{"id": "uuid", "account_id": "uuid", "type": "income|expense", "amount": number, "reason": "string", "payment_method": "cash|transfer", "description": "string|null", "date": "YYYY-MM-DD|ISO8601|null", "category": string|null, "tags": [], "transfer_id": "uuid|null"}` | Unlimited across all plans. `amount > 0`. **Category requirement:** Mandatory for `type = 'expense'` from backend catalog (`'comida'`, `'transporte'`, `'entretenimiento'`, `'estudio'`, `'trabajo'`, `'otros'`). Null for `type = 'income'`. **Rule 6:** Account must be active (`403 ACCOUNT_INACTIVE`) and its type must match the method (`403 ACCOUNT_TYPE_MISMATCH`). Date without time automatically receives `now()` from the server (PRD 4.4). |
+| `transactions` | `update` | `{"id": "uuid", "account_id": "uuid|null", "type": "income|expense|null", "amount": number|null", "reason": "string|null", "payment_method": "cash|transfer|null", "category": string|null, ...}` | **Rule 6:** Requires an active destination account (`403 ACCOUNT_INACTIVE`) and payment method consistency (`403 ACCOUNT_TYPE_MISMATCH`). If updated transaction is `expense`, valid `category` is mandatory. |
 | `transactions` | `delete` | `{"id": "uuid", "deletion_reason": "string|null"}` | Deactivates the transaction (Soft Delete) and logs an optional reason. |
 | `transactions` | `restore` | `{"id": "uuid"}` | Reactivates the transaction (`deleted_at = null`). **Rule 6:** Requires the associated account to be active (`403 ACCOUNT_INACTIVE`). If it was the source of a prior relocation, reactivation is allowed while notifying the user (Rule 9). |
 | `transactions` | `hard-delete` | `{"id": "uuid"}` | **Irreversible permanent deletion of a transaction.** Only permitted if the transaction was already previously deactivated (`422 HARD_DELETE_REQUIRES_SOFT_DELETE`). |
@@ -782,8 +782,30 @@ The `/api/sync/push` endpoint processes all operations submitted in the batch. I
 ```
 
 
-*(HTTP Code: `403 Forbidden`)*
 * **Successful Response (200 OK):** `StreamedResponse` file download with headers `Content-Type: text/csv; charset=UTF-8` and `Content-Disposition: attachment; filename="transacciones-rastro-...csv"`.
+
+---
+
+#### `GET /api/categories`
+
+* **Description:** Returns the active catalog of expense categories defined by the backend.
+* **Authentication:** `auth:sanctum` + active session.
+* **Successful Response (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Categorías obtenidas exitosamente.",
+  "data": [
+    { "id": "comida", "name": "Comida", "icon": "utensils" },
+    { "id": "transporte", "name": "Transporte", "icon": "car" },
+    { "id": "entretenimiento", "name": "Entretenimiento", "icon": "film" },
+    { "id": "estudio", "name": "Estudio", "icon": "book-open" },
+    { "id": "trabajo", "name": "Trabajo", "icon": "briefcase" },
+    { "id": "otros", "name": "Otros", "icon": "more-horizontal" }
+  ],
+  "meta": null
+}
+```
 
 ---
 
