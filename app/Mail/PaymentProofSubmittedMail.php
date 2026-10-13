@@ -32,7 +32,7 @@ class PaymentProofSubmittedMail extends Mailable
         $receipt = (string) ($this->premiumRequest?->transfer_receipt ?? $this->user->payment_receipt ?? 'S/N');
 
         return new Envelope(
-            subject: "[Rastro Admin] Nueva Solicitud Premium: {$identifier} — {$bank} (Comp. #{$receipt})",
+            subject: "[Rastro Admin] Nueva Solicitud Premium: {$identifier} - {$bank} (Comp. #{$receipt})",
         );
     }
 

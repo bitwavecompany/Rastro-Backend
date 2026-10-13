@@ -31,6 +31,7 @@ Route::middleware(['auth:sanctum', 'session.active'])->group(function () {
     Route::post('/auth/logout', [AuthController::class, 'logout']);
 
     Route::post('/sync/push', [SyncController::class, 'push'])->middleware('throttle:60,1');
+    Route::get('/sync/pull', [SyncController::class, 'pull'])->middleware('throttle:60,1');
 
     Route::get('/accounts', [AccountController::class, 'index']);
     Route::get('/transactions', [TransactionController::class, 'index']);

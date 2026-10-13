@@ -387,9 +387,13 @@ The system does not block the reactivation — it only informs. The user decides
 
 All reads and writes operate first on the local device database (Dexie/IndexedDB). The app is fully functional without internet. Only registered users (Free and Premium) sync with the cloud — Guest data is never sent to the server.
 
-### Outbox Pattern
+### Outbox Pattern (Push)
 
-Changes made offline are queued in an Outbox in the exact order they occurred. When connectivity is detected, the sync engine sends each operation to the server sequentially and marks it as synced upon receiving confirmation.
+Changes made offline are queued in an Outbox in the exact order they occurred. When connectivity is detected, the sync engine sends each operation to the server sequentially via `POST /api/sync/push` and marks it as synced upon receiving confirmation.
+
+### Hydration and Multi-device Sync (Pull)
+
+To synchronize updates made across multiple devices, during page reloads, or upon mobile app resume (`visibilitychange`), the client executes a pull request to `GET /api/sync/pull` (optionally specifying `?since=<ISO_TIMESTAMP>`). The client directly merges all received accounts and transactions into Dexie via `bulkPut`. Entities with `deleted_at != null` retain their deactivation timestamp to update the local database reactively.
 
 ### Dead Letter Queue (DLQ)
 

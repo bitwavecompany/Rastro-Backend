@@ -593,9 +593,54 @@ Single source of truth (SSOT) for Premium Plan upgrade requests and their approv
 
 ```
 
+---
 
+#### `GET /api/sync/pull`
 
-#### Canonical Operations Catalog:
+* **Description:** **Bidirectional Synchronization Download (Pull / Hydration).** Dedicated endpoint for secondary devices, web page reloads, and mobile app resume (`visibilitychange`). Atomically returns all accounts and transactions (including soft-deleted records via `withTrashed()`) in a single payload to hydrate the local database (Dexie/IndexedDB) with zero pagination overhead.
+* **Rate Limit:** `60 requests / minute`.
+* **Query Parameters (Optional):**
+  * `since`: ISO 8601 timestamp (e.g., `2026-10-13T15:00:00Z`). When present, returns only entities with `updated_at >= since`. When omitted, downloads the complete dataset permitted by the user's plan.
+* **Successful Response (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Datos sincronizados exitosamente.",
+  "data": {
+    "server_time": "2026-10-13T16:55:00.000000Z",
+    "accounts": [
+      {
+        "id": "01a1284d-6837-72a8-ad05-81403649f104",
+        "name": "Efectivo",
+        "type": "cash",
+        "amount": 100.00,
+        "initial_balance": 100.00,
+        "is_default": true,
+        "deleted_at": null,
+        "updated_at": "2026-10-13T16:50:00.000000Z"
+      }
+    ],
+    "transactions": [
+      {
+        "id": "01a1284d-80dc-7377-87e5-f684cfd4fe53",
+        "account_id": "01a1284d-6837-72a8-ad05-81403649f104",
+        "type": "expense",
+        "amount": 15.00,
+        "reason": "Almuerzo",
+        "category": "comida",
+        "deleted_at": null,
+        "updated_at": "2026-10-13T16:52:00.000000Z"
+      }
+    ]
+  },
+  "meta": null
+}
+```
+* **Frontend Integration:** Client invokes `await db.accounts.bulkPut(data.accounts)` and `await db.transactions.bulkPut(data.transactions)`. Because `deleted_at` is preserved, local Dexie entries automatically sync their deactivation state.
+
+---
+
+#### Canonical Operations Catalog (Push):
 
 | Entity | Canonical Operation (`op`) | Required Payload | Business Rules and Validations |
 | --- | --- | --- | --- |

@@ -12,6 +12,8 @@ class ApiMessage
 
     public const BATCH_PROCESSED = 'Bache procesado.';
 
+    public const SYNC_PULL_SUCCESS = 'Datos sincronizados exitosamente.';
+
     public const UNAUTHORIZED = 'Acceso denegado. Token inválido o ausente.';
 
     public const FORBIDDEN = 'No tienes permisos para realizar esta acción.';
