@@ -393,7 +393,10 @@ Changes made offline are queued in an Outbox in the exact order they occurred. W
 
 ### Hydration and Multi-device Sync (Pull)
 
-To synchronize updates made across multiple devices, during page reloads, or upon mobile app resume (`visibilitychange`), the client executes a pull request to `GET /api/sync/pull` (optionally specifying `?since=<ISO_TIMESTAMP>`). The client directly merges all received accounts and transactions into Dexie via `bulkPut`. Entities with `deleted_at != null` retain their deactivation timestamp to update the local database reactively.
+To synchronize updates made across multiple devices, during page reloads, or upon mobile app resume (`visibilitychange`), the client executes a pull request to `GET /api/sync/pull` (optionally specifying `?since=<ISO_TIMESTAMP>`). 
+- **Clock Skew Safety Buffer:** For incremental queries (`?since=`), the server subtracts a 2-second safety buffer (`since - 2s`) to prevent race conditions from concurrent operations in flight.
+- **Soft Deletes:** Entities with `deleted_at != null` retain their deactivation timestamp; the client uses `bulkPut` to reflect deactivated/soft-deleted records reactively in Dexie.
+- **Physical Deletions (Tombstones):** Irreversible physical deletions (`hard-delete`, `purge-account`, `purge-all`) register deleted entity IDs in `sync_tombstones`. In incremental pulls, the server returns `deleted_account_ids` and `deleted_transaction_ids`. The client uses `bulkDelete` to purge these IDs directly from IndexedDB without requiring a forced full re-download (`forceFull`).
 
 ### Dead Letter Queue (DLQ)
 

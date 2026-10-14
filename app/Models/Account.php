@@ -41,6 +41,7 @@ class Account extends Model
                 $account->transactions()->whereNull('deleted_at')->update([
                     'deletion_reason' => 'cascade_account_deactivation',
                     'deleted_at' => now(),
+                    'updated_at' => now(),
                 ]);
             }
         });

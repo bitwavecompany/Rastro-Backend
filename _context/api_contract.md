@@ -597,10 +597,10 @@ Single source of truth (SSOT) for Premium Plan upgrade requests and their approv
 
 #### `GET /api/sync/pull`
 
-* **Description:** **Bidirectional Synchronization Download (Pull / Hydration).** Dedicated endpoint for secondary devices, web page reloads, and mobile app resume (`visibilitychange`). Atomically returns all accounts and transactions (including soft-deleted records via `withTrashed()`) in a single payload to hydrate the local database (Dexie/IndexedDB) with zero pagination overhead.
+* **Description:** **Bidirectional Synchronization Download (Pull / Hydration).** Dedicated endpoint for secondary devices, web page reloads, and mobile app resume (`visibilitychange`). Atomically returns all accounts and transactions (including soft-deleted records via `withTrashed()`) alongside physically deleted tombstones in a single payload to hydrate the local database (Dexie/IndexedDB) with zero pagination overhead.
 * **Rate Limit:** `60 requests / minute`.
 * **Query Parameters (Optional):**
-  * `since`: ISO 8601 timestamp (e.g., `2026-10-13T15:00:00Z`). When present, returns only entities with `updated_at >= since`. When omitted, downloads the complete dataset permitted by the user's plan.
+  * `since`: ISO 8601 timestamp (e.g., `2026-10-13T15:00:00Z`). When present, applies a **2-second clock skew safety buffer** (`since - 2s`) to ensure no in-flight concurrent writes are missed, returning entities with `updated_at >= (since - 2s)` and physical deletions from `sync_tombstones`. When omitted (full pull), downloads the complete dataset permitted by the user's plan and returns empty arrays for tombstones.
 * **Successful Response (200 OK):**
 ```json
 {
@@ -631,12 +631,23 @@ Single source of truth (SSOT) for Premium Plan upgrade requests and their approv
         "deleted_at": null,
         "updated_at": "2026-10-13T16:52:00.000000Z"
       }
+    ],
+    "deleted_account_ids": [
+      "01a1284d-9999-72a8-ad05-81403649f999"
+    ],
+    "deleted_transaction_ids": [
+      "01a1284d-8888-7377-87e5-f684cfd4f888"
     ]
   },
   "meta": null
 }
 ```
-* **Frontend Integration:** Client invokes `await db.accounts.bulkPut(data.accounts)` and `await db.transactions.bulkPut(data.transactions)`. Because `deleted_at` is preserved, local Dexie entries automatically sync their deactivation state.
+* **Frontend Integration:**
+  1. Upsert live and soft-deleted entities: `await db.accounts.bulkPut(data.accounts)` and `await db.transactions.bulkPut(data.transactions)`.
+  2. Purge physically deleted entities from IndexedDB:
+     - If `data.deleted_account_ids.length > 0`: `await db.accounts.bulkDelete(data.deleted_account_ids)`.
+     - If `data.deleted_transaction_ids.length > 0`: `await db.transactions.bulkDelete(data.deleted_transaction_ids)`.
+  3. Store `data.server_time` in `localStorage` as the reference timestamp for subsequent `?since=<last_sync>` polling.
 
 ---
 

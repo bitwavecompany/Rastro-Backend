@@ -65,6 +65,11 @@ class User extends Authenticatable
         return $this->hasMany(UserSession::class);
     }
 
+    public function syncTombstones(): HasMany
+    {
+        return $this->hasMany(SyncTombstone::class);
+    }
+
     public function isPremium(): bool
     {
         return $this->plan === UserPlan::Premium;

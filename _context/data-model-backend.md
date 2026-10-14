@@ -91,6 +91,11 @@ Every concept in the system has a **single field name**, used identically across
 | | `revoked_at` | `string \| null` | `$table->timestamp('revoked_at')->nullable()->index()` | Nullable | Remote revocation mark |
 | | `created_at` | `string` | `$table->timestamp('created_at')` | Immutable | Session issuance |
 | | `updated_at` | `string` | `$table->timestamp('updated_at')` | Automatic | Last refresh |
+| **SyncTombstone** | `id` | `number` | `$table->bigIncrements('id')` | Primary Key | Incremental ID |
+| | `user_id` | `string` | `$table->foreignUuid('user_id')->constrained()->cascadeOnDelete()` | Foreign Key, Indexed | Owning user |
+| | `entity` | `string` | `$table->string('entity', 32)` | 'accounts', 'transactions' | Deleted entity table name |
+| | `entity_id` | `string` | `$table->uuid('entity_id')` | UUID | Physically deleted record ID |
+| | `deleted_at` | `string` | `$table->timestamp('deleted_at')` | Timestamp | Physical deletion timestamp (Indexed with user_id) |
 
 ---
 

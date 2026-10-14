@@ -7,6 +7,7 @@ namespace App\Commands\Sync\Transactions;
 use App\Constants\ApiMessage;
 use App\Constants\HttpCode;
 use App\Contracts\SyncCommandInterface;
+use App\Models\SyncTombstone;
 use App\Models\Transaction;
 use App\Models\User;
 use Exception;
@@ -27,6 +28,13 @@ class HardDeleteTransactionCommand implements SyncCommandInterface
         if ($transaction->deleted_at === null) {
             throw new Exception(ApiMessage::HARD_DELETE_REQUIRES_SOFT_DELETE, HttpCode::UNPROCESSABLE_ENTITY);
         }
+
+        SyncTombstone::create([
+            'user_id' => $user->id,
+            'entity' => 'transactions',
+            'entity_id' => (string) $transaction->id,
+            'deleted_at' => now(),
+        ]);
 
         $transaction->forceDelete();
     }
