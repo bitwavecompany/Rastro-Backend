@@ -246,4 +246,27 @@ class UserProfileLifecycleTest extends TestCase
 
         Mail::assertSent(PaymentProofSubmittedMail::class);
     }
+
+    public function test_payment_proof_submitted_mail_renders_admin_dashboard_url(): void
+    {
+        /** @var User $user */
+        $user = User::factory()->create([
+            'name' => 'Juan Perez',
+            'email' => 'juan@ejemplo.com',
+        ]);
+
+        $premiumRequest = PremiumRequest::create([
+            'user_id' => $user->id,
+            'origin_bank' => 'Banco Guayaquil',
+            'transfer_receipt' => 'REC-12345',
+            'status' => PremiumRequestStatus::PendingVerification,
+            'payment_method' => PaymentMethod::Transfer,
+        ]);
+
+        $mailable = new PaymentProofSubmittedMail($user, $premiumRequest);
+
+        $mailable->assertSeeInHtml('https://rastro-ec.vercel.app/admin/login');
+        $mailable->assertSeeInHtml('Banco Guayaquil');
+        $mailable->assertSeeInHtml('REC-12345');
+    }
 }

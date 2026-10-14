@@ -39,7 +39,7 @@ return [
 
         'smtp' => [
             'transport' => 'smtp',
-            'scheme' => env('MAIL_SCHEME', (string) env('MAIL_PORT') === '465' ? 'smtps' : null),
+            'scheme' => env('MAIL_SCHEME', in_array((string) env('MAIL_PORT'), ['465', '2465'], true) ? 'smtps' : null),
             'url' => env('MAIL_URL'),
             'host' => env('MAIL_HOST', '127.0.0.1'),
             'port' => env('MAIL_PORT', 2525),
@@ -116,5 +116,7 @@ return [
     ],
 
     'admin_address' => env('ADMIN_NOTIFICATION_EMAIL', 'bitwave.company@gmail.com'),
+
+    'admin_dashboard_url' => env('ADMIN_DASHBOARD_URL', 'https://rastro-ec.vercel.app/admin/login'),
 
 ];
