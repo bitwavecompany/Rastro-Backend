@@ -158,6 +158,51 @@ class TransactionTest extends TestCase
             ->assertJsonCount(2, 'data');
     }
 
+    public function test_listar_transacciones_retorna_la_ultima_ingresada_primero(): void
+    {
+        /** @var User $user */
+        $user = User::factory()->create();
+
+        $acc = $user->accounts()->create(['name' => 'Cuenta', 'type' => AccountType::Cash, 'amount' => 100]);
+
+        $txOld = $user->transactions()->create([
+            'account_id' => $acc->id,
+            'kind' => TransactionKind::Expense,
+            'amount' => 10.00,
+            'reason' => 'Tx Vieja',
+            'paymentType' => 'cash',
+            'date' => now()->subDays(2),
+            'created_at' => now()->subHours(5),
+        ]);
+
+        $txMid = $user->transactions()->create([
+            'account_id' => $acc->id,
+            'kind' => TransactionKind::Expense,
+            'amount' => 20.00,
+            'reason' => 'Tx Hoy Anterior',
+            'paymentType' => 'cash',
+            'date' => now(),
+            'created_at' => now()->subHours(2),
+        ]);
+
+        $txLatest = $user->transactions()->create([
+            'account_id' => $acc->id,
+            'kind' => TransactionKind::Expense,
+            'amount' => 30.00,
+            'reason' => 'Tx Hoy Ultima',
+            'paymentType' => 'cash',
+            'date' => now(),
+            'created_at' => now()->subMinute(),
+        ]);
+
+        $response = $this->actingAs($user)->getJson('/api/transactions');
+
+        $response->assertStatus(200)
+            ->assertJsonPath('data.0.id', $txLatest->id)
+            ->assertJsonPath('data.1.id', $txMid->id)
+            ->assertJsonPath('data.2.id', $txOld->id);
+    }
+
     public function test_soft_delete_y_restauracion_de_transaccion(): void
     {
         /** @var User $user */

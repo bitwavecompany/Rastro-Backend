@@ -36,7 +36,10 @@ final class ProcessSyncPullAction
         if ($sinceDate !== null) {
             $accountsQuery->where('updated_at', '>=', $sinceDate);
         }
-        $accounts = $accountsQuery->latest('updated_at')->get();
+        $accounts = $accountsQuery
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
+            ->get();
 
         $transactionsQuery = $user->transactions()
             ->withTrashed()
@@ -45,7 +48,11 @@ final class ProcessSyncPullAction
         if ($sinceDate !== null) {
             $transactionsQuery->where('updated_at', '>=', $sinceDate);
         }
-        $transactions = $transactionsQuery->latest('updated_at')->get();
+        $transactions = $transactionsQuery
+            ->orderByDesc('date')
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
+            ->get();
 
         $deletedAccountIds = [];
         $deletedTransactionIds = [];

@@ -355,4 +355,72 @@ class SyncPullTest extends TestCase
             'entity_id' => $tx2->id,
         ]);
     }
+
+    public function test_pull_retorna_cuentas_y_transacciones_ordenadas_con_el_ultimo_ingresado_primero(): void
+    {
+        /** @var User $user */
+        $user = User::factory()->create(['plan' => UserPlan::Free]);
+
+        $accountOld = $user->accounts()->create([
+            'name' => 'Cuenta Vieja',
+            'type' => AccountType::Cash,
+            'amount' => 100.0,
+            'is_default' => true,
+            'created_at' => now()->subHours(5),
+        ]);
+
+        $accountNew = $user->accounts()->create([
+            'name' => 'Cuenta Nueva',
+            'type' => AccountType::Bank,
+            'amount' => 200.0,
+            'is_default' => false,
+            'created_at' => now()->subHour(),
+        ]);
+
+        $txOld = $user->transactions()->create([
+            'account_id' => $accountOld->id,
+            'type' => TransactionKind::Expense,
+            'amount' => 10.0,
+            'reason' => 'Gasto Viejo',
+            'payment_method' => PaymentMethod::Cash,
+            'category' => TransactionCategory::Food->value,
+            'date' => now()->subDays(2)->toDateString(),
+            'created_at' => now()->subHours(4),
+        ]);
+
+        $txMid = $user->transactions()->create([
+            'account_id' => $accountOld->id,
+            'type' => TransactionKind::Expense,
+            'amount' => 20.0,
+            'reason' => 'Gasto Hoy Anterior',
+            'payment_method' => PaymentMethod::Cash,
+            'category' => TransactionCategory::Food->value,
+            'date' => now()->toDateString(),
+            'created_at' => now()->subHours(2),
+        ]);
+
+        $txLatest = $user->transactions()->create([
+            'account_id' => $accountOld->id,
+            'type' => TransactionKind::Expense,
+            'amount' => 30.0,
+            'reason' => 'Gasto Hoy Ultimo Ingresado',
+            'payment_method' => PaymentMethod::Cash,
+            'category' => TransactionCategory::Food->value,
+            'date' => now()->toDateString(),
+            'created_at' => now()->subMinute(),
+        ]);
+
+        $response = $this->actingAs($user)->getJson('/api/sync/pull');
+
+        $response->assertStatus(200);
+
+        // Validar orden de cuentas: último creado primero
+        $response->assertJsonPath('data.accounts.0.id', (string) $accountNew->id);
+        $response->assertJsonPath('data.accounts.1.id', (string) $accountOld->id);
+
+        // Validar orden de transacciones: fecha más reciente y último ingresado primero
+        $response->assertJsonPath('data.transactions.0.id', (string) $txLatest->id);
+        $response->assertJsonPath('data.transactions.1.id', (string) $txMid->id);
+        $response->assertJsonPath('data.transactions.2.id', (string) $txOld->id);
+    }
 }

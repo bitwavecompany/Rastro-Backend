@@ -29,7 +29,8 @@ class AdminController extends Controller
         $perPage = min(100, max(1, $request->integer('per_page', 25)));
 
         $users = User::where('role', UserRole::Client)
-            ->latest()
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
             ->paginate($perPage);
 
         return $this->successResponse(
@@ -50,7 +51,8 @@ class AdminController extends Controller
 
         $requests = PremiumRequest::where('status', PremiumRequestStatus::PendingVerification)
             ->with('user')
-            ->latest()
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
             ->paginate($perPage);
 
         return $this->successResponse(

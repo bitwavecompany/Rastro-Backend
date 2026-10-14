@@ -16,7 +16,8 @@ class AccountController extends Controller
         $accounts = $request->user()->accounts()
             ->ofType($request->query('type'))
             ->activeOnly($request->boolean('active_only'))
-            ->latest()
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
             ->get();
 
         return $this->successResponse(

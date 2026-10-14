@@ -597,7 +597,7 @@ Single source of truth (SSOT) for Premium Plan upgrade requests and their approv
 
 #### `GET /api/sync/pull`
 
-* **Description:** **Bidirectional Synchronization Download (Pull / Hydration).** Dedicated endpoint for secondary devices, web page reloads, and mobile app resume (`visibilitychange`). Atomically returns all accounts and transactions (including soft-deleted records via `withTrashed()`) alongside physically deleted tombstones in a single payload to hydrate the local database (Dexie/IndexedDB) with zero pagination overhead.
+* **Description:** **Bidirectional Synchronization Download (Pull / Hydration).** Dedicated endpoint for secondary devices, web page reloads, and mobile app resume (`visibilitychange`). Atomically returns all accounts (ordered by `created_at DESC, id DESC`) and transactions (ordered by `date DESC, created_at DESC, id DESC`, including soft-deleted records via `withTrashed()`) alongside physically deleted tombstones in a single payload to hydrate the local database (Dexie/IndexedDB) with zero pagination overhead.
 * **Rate Limit:** `60 requests / minute`.
 * **Query Parameters (Optional):**
   * `since`: ISO 8601 timestamp (e.g., `2026-10-13T15:00:00Z`). When present, applies a **2-second clock skew safety buffer** (`since - 2s`) to ensure no in-flight concurrent writes are missed, returning entities with `updated_at >= (since - 2s)` and physical deletions from `sync_tombstones`. When omitted (full pull), downloads the complete dataset permitted by the user's plan and returns empty arrays for tombstones.
@@ -764,7 +764,7 @@ The `/api/sync/push` endpoint processes all operations submitted in the batch. I
 
 #### `GET /api/accounts`
 
-* **Description:** Retrieves the user's accounts (by default includes active and deactivated accounts via `withTrashed()` for local state synchronization).
+* **Description:** Retrieves the user's accounts ordered chronologically in descending order (newest created account first, `created_at DESC, id DESC`).
 * **Rate Limit:** Infrastructure standard (60 req/min).
 * **Query Parameters (Optional):**
 * `type`: `'cash'` | `'bank'` (filters by account type, populating the selector from Rule 1).

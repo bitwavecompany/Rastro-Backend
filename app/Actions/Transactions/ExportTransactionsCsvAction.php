@@ -39,7 +39,9 @@ final class ExportTransactionsCsvAction
             $user->transactions()
                 ->with('account')
                 ->withTrashed()
-                ->latest()
+                ->orderByDesc('date')
+                ->orderByDesc('created_at')
+                ->orderByDesc('id')
                 ->chunk(200, function ($transactions) use ($handle) {
                     foreach ($transactions as $tx) {
                         fputcsv($handle, [

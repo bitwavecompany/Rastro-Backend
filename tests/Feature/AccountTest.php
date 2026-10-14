@@ -37,6 +37,34 @@ class AccountTest extends TestCase
         $this->assertEquals(100.0, $response->json('data.0.initial_balance'));
     }
 
+    public function test_listar_cuentas_retorna_la_ultima_creada_primero(): void
+    {
+        /** @var User $user */
+        $user = User::factory()->create();
+
+        $accountOld = $user->accounts()->create([
+            'name' => 'Cuenta Uno',
+            'type' => AccountType::Cash,
+            'amount' => 100.00,
+            'is_default' => true,
+            'created_at' => now()->subHours(2),
+        ]);
+
+        $accountNew = $user->accounts()->create([
+            'name' => 'Cuenta Dos',
+            'type' => AccountType::Bank,
+            'amount' => 200.00,
+            'is_default' => false,
+            'created_at' => now()->subHour(),
+        ]);
+
+        $response = $this->actingAs($user)->getJson('/api/accounts');
+
+        $response->assertStatus(200)
+            ->assertJsonPath('data.0.id', (string) $accountNew->id)
+            ->assertJsonPath('data.1.id', (string) $accountOld->id);
+    }
+
     public function test_un_usuario_puede_crear_una_cuenta_mediante_sync(): void
     {
         /** @var User $user */

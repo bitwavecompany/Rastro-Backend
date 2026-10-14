@@ -124,8 +124,8 @@ final class RegisterAndSyncUserAction
                 'token_type' => $tokenPair['token_type'],
                 'expires_in' => $tokenPair['expires_in'],
                 'syncedData' => [
-                    'accounts' => $savedAccounts,
-                    'transactions' => $savedTransactions,
+                    'accounts' => $user->accounts()->orderByDesc('created_at')->orderByDesc('id')->get(),
+                    'transactions' => $user->transactions()->orderByDesc('date')->orderByDesc('created_at')->orderByDesc('id')->get(),
                 ],
             ];
 

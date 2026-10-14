@@ -28,7 +28,9 @@ class TransactionController extends Controller
             ->forAccount($request->query('account_id'))
             ->forUserPlan($user->plan)
             ->activeOnly($request->boolean('active_only'))
-            ->latest()
+            ->orderByDesc('date')
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
             ->paginate($perPage);
 
         return $this->successResponse(
