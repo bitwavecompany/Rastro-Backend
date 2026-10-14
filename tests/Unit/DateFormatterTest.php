@@ -32,4 +32,20 @@ class DateFormatterTest extends TestCase
 
         $this->assertEquals('', $formatted);
     }
+
+    public function test_formats_date_time_with_explicit_timezone(): void
+    {
+        $dateUtc = Carbon::parse('2026-10-13 21:30:00', 'UTC');
+        $formatted = DateFormatter::formatDateTime($dateUtc, 'America/Guayaquil');
+
+        // UTC 21:30 is 16:30 in America/Guayaquil (UTC-5)
+        $this->assertEquals('13 oct 2026, 16:30', $formatted);
+    }
+
+    public function test_format_date_time_returns_empty_string_for_null(): void
+    {
+        $formatted = DateFormatter::formatDateTime(null);
+
+        $this->assertEquals('', $formatted);
+    }
 }

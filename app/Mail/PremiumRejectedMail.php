@@ -32,7 +32,7 @@ class PremiumRejectedMail extends Mailable
             with: [
                 'user' => $this->user,
                 'reason' => $this->reason,
-                'dateFormatted' => DateFormatter::format(now()),
+                'dateFormatted' => DateFormatter::formatDateTime(now()),
             ],
         );
     }

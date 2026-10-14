@@ -31,7 +31,7 @@ class PremiumActivatedMail extends Mailable
             view: 'emails.premium_activated',
             with: [
                 'user' => $this->user,
-                'dateFormatted' => DateFormatter::format(now()),
+                'dateFormatted' => DateFormatter::formatDateTime(now()),
             ],
         );
     }

@@ -43,7 +43,7 @@ class PaymentProofSubmittedMail extends Mailable
         $rawMethod = $this->premiumRequest?->payment_method ?? $this->user->payment_method;
         $methodValue = $rawMethod instanceof \BackedEnum ? $rawMethod->value : (string) $rawMethod;
 
-        $dateFormatted = DateFormatter::format($this->premiumRequest?->created_at ?? $this->user->updated_at ?? now());
+        $dateFormatted = DateFormatter::formatDateTime($this->premiumRequest?->created_at ?? $this->user->updated_at ?? now());
         $adminUrl = (string) config('mail.admin_dashboard_url', 'https://rastro-ec.vercel.app/admin/login');
 
         return new Content(

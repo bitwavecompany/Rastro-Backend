@@ -31,7 +31,7 @@ class PlanDowngradedMail extends Mailable
             view: 'emails.plan_downgraded',
             with: [
                 'user' => $this->user,
-                'dateFormatted' => DateFormatter::format(now()),
+                'dateFormatted' => DateFormatter::formatDateTime(now()),
             ]
         );
     }
